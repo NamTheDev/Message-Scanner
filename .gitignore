@@ -2,3 +2,5 @@
 node_modules
 offenses.json
 config.json
+kicks.json
+messageHistory.json
