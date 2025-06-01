@@ -45,7 +45,13 @@ module.exports = {
         ).join('\n');
 
         // Prompt for AI
-        const prompt = `Analyze the following chat messages for any racial slurs or discriminatory content. Focus only on clear violations, not ambiguous cases. Don't make assumptions about users' intentions. If there's a violation, explain exactly why it's inappropriate:
+        const prompt = `Analyze the following chat messages for any racial slurs.
+
+        Racial slurs: ${config.violation.racialSlurs.join(", ")}
+
+        Notice: 
+        - people can bypass, so try to decompose every words from the user.
+        - always base on chat context to analyze.
 
 Chat context:
 ${messageContext}
