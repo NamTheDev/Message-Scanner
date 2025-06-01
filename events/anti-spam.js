@@ -11,7 +11,7 @@ const SIMILARITY_THRESHOLD = config.spam.similarityThreshold; // Threshold for m
 module.exports = {
     event: 'messageCreate',
     async run(client, message) {
-        if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
+        if (message.author.bot || config.bypassRoleIds.some(message.member.roles.cache.has)) return;
 
         // Load message history
         const messageHistoryPath = path.join(__dirname, '..', 'messageHistory.json');
