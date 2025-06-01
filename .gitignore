@@ -1,6 +1,5 @@
 .env
 node_modules
-offenses.json
-config.json
-kicks.json
+cases.json
 messageHistory.json
+package-lock.json
