@@ -11,7 +11,7 @@ const model = genAI.getGenerativeModel({ model: config.model });
 module.exports = {
     event: 'messageCreate',
     async run(client, message) {
-        if (message.author.bot || config.bypassRoleIds.some(message.member.roles.cache.has)) return;
+        if (message.author.bot || config.bypassRoleIds.some(roleId => message.member.roles.cache.has(roleId))) return;
 
         // Load message history and violations
         const messageHistoryPath = path.join(__dirname, '..', 'messageHistory.json');
