@@ -18,7 +18,7 @@ module.exports = {
         if (!interaction.member.roles.cache.has(config.staffRoleId)) {
             return interaction.reply({
                 content: 'You do not have permission to use this command.',
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
 
@@ -32,7 +32,7 @@ module.exports = {
         if (userCases.length === 0) {
             return interaction.reply({
                 content: `No cases found for user ${targetUser.tag}`,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
 
