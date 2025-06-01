@@ -1,5 +1,5 @@
 {
-    "bypassRoleIds": ["1377305394254184558", "1377586909936746646"],
+    "staffRoleId": "1377305394254184558",
     "model": "gemini-2.0-flash-lite",
     "rules": [
         "No racial slurs, no rape, suicidal, and harsh discrimination conversation is strictly not allowed",
