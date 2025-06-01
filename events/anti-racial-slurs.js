@@ -11,7 +11,7 @@ const model = genAI.getGenerativeModel({ model: config.model });
 module.exports = {
     event: 'messageCreate',
     async run(client, message) {
-        if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
+        if (message.author.bot || config.bypassRoleIds.some(message.member.roles.cache.has)) return;
 
         // Load message history and violations
         const messageHistoryPath = path.join(__dirname, '..', 'messageHistory.json');
@@ -39,9 +39,9 @@ module.exports = {
             Date.now() - msg.createdTimestamp <= 30000 && !msg.author.bot
         );
 
-        // Prepare context for AI
+        // Prepare context for AI with message IDs
         const messageContext = recentMessages.map(msg =>
-            `${msg.author.username}: ${msg.content}`
+            `MessageID ${msg.id} - ${msg.author.username}: ${msg.content}`
         ).join('\n');
 
         // Prompt for AI
@@ -52,48 +52,65 @@ module.exports = {
         Notice: 
         - people can bypass, so try to decompose every words from the user.
         - always base on chat context to analyze.
+        - include the MessageID of the violating message in your response.
 
 Chat context:
 ${messageContext}
 
-Should the most recent message be flagged as inappropriate? Respond in this format:
+Should any message be flagged as inappropriate? Respond in this format:
 {
     "isViolation": true/false,
+    "messageId": "message ID of the violating message",
     "reason": "Detailed explanation if violation detected, otherwise 'No violation detected'"
 }
-"
-`;
+"`;
 
         try {
             const result = await model.generateContent(prompt);
-            // Clean the response text by removing code blocks and extra whitespace
             const cleanedResponse = result.response.text()
-                .replace(/```(?:json)?\s*|\s*```/g, '') // Remove ``` and ```json
+                .replace(/```(?:json)?\s*|\s*```/g, '')
                 .trim();
             
             const response = JSON.parse(cleanedResponse);
 
-            if (response.isViolation) {
-                // Delete the violating message
-                await message.delete();
+            if (response.isViolation && response.messageId) {
+                // Find the violating message
+                const violatingMessage = await message.channel.messages.fetch(response.messageId)
+                    .catch(() => null);
 
-                // Update violations counter
-                violations[message.author.id].warnings++;
-                violations[message.author.id].lastViolationTimestamp = Date.now();
+                if (!violatingMessage) return;
+
+                // Delete the specific violating message
+                await violatingMessage.delete();
+
+                // Update violations counter for the violating message author
+                if (!violations[violatingMessage.author.id]) {
+                    violations[violatingMessage.author.id] = {
+                        warnings: 0,
+                        strictViolations: 0,
+                        lastViolationTimestamp: 0
+                    };
+                }
+
+                violations[violatingMessage.author.id].warnings++;
+                violations[violatingMessage.author.id].lastViolationTimestamp = Date.now();
                 
-                await message.channel.send(`<@${message.author.id}> ${violations[message.author.id].warnings}/6 warn.\n> Refrain from using racial slurs.`);
+                await message.channel.send(
+                    `<@${violatingMessage.author.id}> ${violations[violatingMessage.author.id].warnings}/6 warn.\n> Refrain from using racial slurs.`
+                );
 
                 // Check punishment phases
                 let actionTaken = "";
-                if (violations[message.author.id].warnings >= config.violation.maxWarnings * 2 && violations[message.author.id].strictViolations >= config.violation.maxStrictViolations) {
+                if (violations[violatingMessage.author.id].warnings >= config.violation.maxWarnings * 2 && 
+                    violations[violatingMessage.author.id].strictViolations >= config.violation.maxStrictViolations) {
                     // Phase 2: Potential ban
                     actionTaken = "Potential Ban - Staff Review Required";
-                    notifyStaffForBan(client, message, violations[message.author.id], response.reason);
-                } else if (violations[message.author.id].warnings >= config.violation.maxWarnings) {
+                    notifyStaffForBan(client, violatingMessage, violations[violatingMessage.author.id], response.reason);
+                } else if (violations[violatingMessage.author.id].warnings >= config.violation.maxWarnings) {
                     // Phase 1: Timeout
                     actionTaken = `Timeout (${config.timeoutDuration / 1000}s)`;
-                    await message.member.timeout(config.timeoutDuration, 'Racial Slurs Violation');
-                    violations[message.author.id].strictViolations++;
+                    await violatingMessage.member.timeout(config.timeoutDuration, 'Racial Slurs Violation');
+                    violations[violatingMessage.author.id].strictViolations++;
                 } else {
                     actionTaken = "Warning";
                 }
@@ -106,11 +123,12 @@ Should the most recent message be flagged as inappropriate? Respond in this form
                     type: "racial-slur",
                     decisionMethod: "AI",
                     aiReason: response.reason,
-                    userId: message.author.id,
-                    username: message.author.username,
-                    channelId: message.channel.id,
-                    channelName: message.channel.name,
-                    messageContent: message.content,
+                    userId: violatingMessage.author.id,
+                    username: violatingMessage.author.username,
+                    messageId: violatingMessage.id,
+                    channelId: violatingMessage.channel.id,
+                    channelName: violatingMessage.channel.name,
+                    messageContent: violatingMessage.content,
                     actionTaken,
                     timestamp: new Date().toISOString()
                 };
