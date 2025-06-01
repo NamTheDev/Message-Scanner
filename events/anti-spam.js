@@ -68,6 +68,7 @@ module.exports = {
                         channelId: message.channel.id,
                         channelName: message.channel.name,
                         messageContent: message.content,
+                        actionTaken: "Timeout",
                         timestamp: new Date().toISOString()
                     };
 
