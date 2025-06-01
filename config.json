@@ -3,9 +3,17 @@
     "model": "gemini-2.0-flash-lite",
     "rules": [
         "No racial slurs, no rape, suicidal, and harsh discrimination conversation is strictly not allowed",
-        "No advertisement and personal information is not allowed",
-        "Offensive and insult is not allowed"
+        "No advertisement and personal information is not allowed"
     ],
     "timeoutDuration": 240000,
-    "staffChannelId": "1378630442915463228"
+    "staffChannelId": "1378630442915463228",
+    "spam": {
+        "threshold": 5,
+        "timeWindow": 5000,
+        "similarityThreshold": 0.5
+    },
+    "violation": {
+        "maxStrictViolations": 3,
+        "maxWarnings": 3
+    }
 }
