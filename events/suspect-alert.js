@@ -1,15 +1,18 @@
 const { EmbedBuilder } = require('discord.js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../config.json');
-const fs = require('fs');
-const path = require('path');
+const { default: Groq } = require('groq-sdk');
 
-// Initialize Google AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: config.model });
+// Initialize AI
+const groqClient = new Groq({
+    apiKey: process.env.AI_KEY
+});
 
 // Constants
-const CHECK_INTERVAL = 30*1000; // 30 seconds in milliseconds
+const CHECK_INTERVAL = 30 * 1000; // 30 seconds
+let lastCheckTime = Date.now();
+
+// In-memory message store
+const pendingMessages = new Map();
 
 module.exports = {
     event: 'messageCreate',
@@ -17,24 +20,8 @@ module.exports = {
         // Ignore bot messages and staff messages
         if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
 
-        // Load message history
-        const messageHistoryPath = path.join(__dirname, '..', 'messageHistory.json');
-        let messageHistory = JSON.parse(fs.readFileSync(messageHistoryPath, 'utf8'));
-
-        // Initialize violations structure if doesn't exist
-        if (
-            !messageHistory.violations
-            || !messageHistory.violations.pendingCheck
-            || !messageHistory.violations.lastCheckTime
-        ) {
-            messageHistory.violations = {
-                pendingCheck: [],
-                lastCheckTime: Date.now()
-            };
-        }
-
         // Add message to pending check list
-        messageHistory.violations.pendingCheck.push({
+        const messageData = {
             content: message.content,
             authorId: message.author.id,
             authorTag: message.author.tag,
@@ -42,32 +29,33 @@ module.exports = {
             messageId: message.id,
             guildId: message.guild.id,
             timestamp: Date.now()
-        });
+        };
 
-        // Save updated history
-        fs.writeFileSync(messageHistoryPath, JSON.stringify(messageHistory, null, 2));
+        pendingMessages.set(message.id, messageData);
 
         // Check if it's time to process messages
         const currentTime = Date.now();
-        if (currentTime - messageHistory.violations.lastCheckTime >= CHECK_INTERVAL) {
+        if (currentTime - lastCheckTime >= CHECK_INTERVAL) {
             lastCheckTime = currentTime;
 
             try {
                 // Get all pending messages
-                const pendingMessages = messageHistory.violations.pendingCheck;
-                if (pendingMessages.length === 0) return;
+                if (pendingMessages.size === 0) return;
 
-                // Batch process messages
-                for (const msg of pendingMessages) {
+                // Process messages in parallel for better performance
+                const processingPromises = Array.from(pendingMessages.values()).map(async (msg) => {
                     const prompt = `Check if this message violates any rules. Rules: ${config.rules.join(', ')}
                     Message: "${msg.content}"
-                    Response format: Only respond with "safe" or explain the violation briefly.`;
+                    Response format: either response with "safe" or "violation". if "violation," give a very short explaination.`;
 
-                    const result = await model.generateContent(prompt);
-                    const response = result.response.text().toLowerCase();
+                    const result = await groqClient.chat.completions.create({
+                        messages: [{ role: 'user', content: prompt }],
+                        model: config.model
+                    });
+                    const response = result.choices[0].message.content.toLowerCase();
 
                     // If response isn't "safe", alert staff
-                    if (!response.includes('safe')) {
+                    if (!response.includes('safe') || response.includes("violation")) {
                         const staffChannel = client.channels.cache.get(config.staffChannelId);
                         if (staffChannel) {
                             const messageLink = `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId}`;
@@ -88,12 +76,13 @@ module.exports = {
                             await staffChannel.send({ embeds: [embed] });
                         }
                     }
-                }
+                });
+
+                // Wait for all messages to be processed
+                await Promise.all(processingPromises);
 
                 // Clear pending messages after processing
-                messageHistory.violations.pendingCheck = [];
-                messageHistory.violations.lastCheckTime = currentTime;
-                fs.writeFileSync(messageHistoryPath, JSON.stringify(messageHistory, null, 2));
+                pendingMessages.clear();
 
             } catch (error) {
                 console.error('Error in suspect alert system:', error);
