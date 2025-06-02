@@ -2,8 +2,11 @@
     "staffRoleId": "1377305394254184558",
     "model": "gemini-2.0-flash-lite",
     "rules": [
-        "No racial slurs, no rape, suicidal, and harsh discrimination conversation is strictly not allowed",
-        "No advertisement and personal information is not allowed"
+       "No racism",
+       "No NSFW",
+       "No offensive argument",
+       "No advertisement",
+       "No personal information"
     ],
     "timeoutDuration": 240000,
     "staffChannelId": "1378630442915463228",
@@ -16,6 +19,7 @@
         "maxStrictViolations": 3,
         "maxWarnings": 3,
         "racialSlurs": [
+            "nigg",
             "nigga",
             "nigger",
             "negro",
