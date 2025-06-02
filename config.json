@@ -1,6 +1,6 @@
 {
     "staffRoleId": "1377305394254184558",
-    "model": "gemini-2.0-flash-lite",
+    "model": "llama-3.1-8b-instant",
     "rules": [
        "No racism",
        "No NSFW",
