@@ -1,64 +1,48 @@
-const fs = require('fs');
-const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const config = require('../config.json');
+const path = require('path');
+const fs = require('fs');
 
 // Constants for spam detection
-const SPAM_THRESHOLD = config.spam.threshold;      // Number of messages to trigger spam detection
-const TIME_WINDOW = config.spam.timeWindow;      // Time window in milliseconds (5 seconds)
-const SIMILARITY_THRESHOLD = config.spam.similarityThreshold; // Threshold for message similarity (50%)
+const SPAM_THRESHOLD = config.spam.threshold;
+const TIME_WINDOW = config.spam.timeWindow;
+const SIMILARITY_THRESHOLD = config.spam.similarityThreshold;
+
+// In-memory message store using Map
+const userMessages = new Map();
 
 module.exports = {
     event: 'messageCreate',
     async run(client, message) {
         if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
 
-        // Load message history
-        const messageHistoryPath = path.join(__dirname, '..', 'messageHistory.json');
-        let messageHistory = JSON.parse(fs.readFileSync(messageHistoryPath, 'utf8'));
+        const currentTime = Date.now();
+        const userId = message.author.id;
 
-        if (!messageHistory.spam[message.author.id]) {
-            messageHistory.spam[message.author.id] = [];
+        // Get or initialize user's message array
+        if (!userMessages.has(userId)) {
+            userMessages.set(userId, []);
         }
 
-        // Add new message to history
-        messageHistory.spam[message.author.id].push({
-            timestamp: Date.now(),
+        // Clean up old messages and add new one
+        const messages = userMessages.get(userId)
+            .filter(msg => currentTime - msg.timestamp < TIME_WINDOW);
+
+        messages.push({
+            timestamp: currentTime,
             content: message.content
         });
 
-        // Remove messages older than TIME_WINDOW
-        const currentTime = Date.now();
-        messageHistory.spam[message.author.id] = messageHistory.spam[message.author.id].filter(
-            msg => currentTime - msg.timestamp < TIME_WINDOW
-        );
-
-        // Save updated history
-        fs.writeFileSync(messageHistoryPath, JSON.stringify(messageHistory, null, 2));
+        userMessages.set(userId, messages);
 
         // Check for spam
-        const userMessages = messageHistory.spam[message.author.id];
-        if (userMessages.length >= SPAM_THRESHOLD) {
-            // Check for message similarity
-            const uniqueMessages = new Set(userMessages.map(msg => msg.content));
-            if (uniqueMessages.size / userMessages.length <= SIMILARITY_THRESHOLD) {
+        if (messages.length >= SPAM_THRESHOLD) {
+            // Quick similarity check
+            const uniqueMessages = new Set(messages.map(msg => msg.content));
+            if (uniqueMessages.size / messages.length <= SIMILARITY_THRESHOLD) {
                 try {
-                    // Get all recent messages from this user in the channel
-                    const recentMessages = await message.channel.messages.fetch({ limit: 100 });
-                    const userSpamMessages = recentMessages.filter(msg =>
-                        msg.author.id === message.author.id &&
-                        currentTime - msg.createdTimestamp < TIME_WINDOW
-                    );
-
-                    // Delete all spam messages
-                    await Promise.all(userSpamMessages.map(msg => msg.delete()));
-
-                    // Timeout the user
+                    // Immediate timeout
                     await message.member.timeout(config.timeoutDuration, 'Spam Detection');
-
-                    // Log the case
-                    const casesPath = path.join(__dirname, '..', 'cases.json');
-                    const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
 
                     const spamCase = {
                         type: "spamming",
@@ -72,26 +56,52 @@ module.exports = {
                         timestamp: new Date().toISOString()
                     };
 
-                    cases.push(spamCase);
-                    fs.writeFileSync(casesPath, JSON.stringify(cases, null, 2));
+                    // Run cleanup operations in parallel
+                    await Promise.all([
+                        // Delete messages
+                        (async () => {
+                            const recentMessages = await message.channel.messages.fetch({
+                                limit: Math.min(SPAM_THRESHOLD * 2, 100)
+                            });
+                            const spamMessages = recentMessages.filter(msg =>
+                                msg.author.id === userId &&
+                                currentTime - msg.createdTimestamp < TIME_WINDOW
+                            );
+                            await Promise.all(spamMessages.map(msg => msg.delete()));
+                        })(),
 
-                    // Notify staff
-                    const staffChannel = client.channels.cache.get(config.staffChannelId);
-                    if (staffChannel) {
-                        const embed = new EmbedBuilder()
-                            .setTitle('⚠️ Spam Detection')
-                            .setColor(0xFF0000)
-                            .setDescription(`User ${message.author.toString()} has been timed out for spamming`)
-                            .addFields(
-                                { name: 'Channel', value: `<#${message.channel.id}>` },
-                                { name: 'Content', value: message.content },
-                                { name: 'Action Taken', value: `Timeout (${config.timeoutDuration / 1000}s)` },
-                                { name: 'Messages sent', value: `${userMessages.length} messages in ${TIME_WINDOW / 1000}s` }
-                            )
-                            .setTimestamp();
+                        // Log case to file
+                        (async () => {
+                            const casesPath = path.join(__dirname, '..', 'cases.json');
+                            const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
+                            cases.push(spamCase);
+                            fs.writeFileSync(casesPath, JSON.stringify(cases, null, 2));
+                        })(),
 
-                        await staffChannel.send({ embeds: [embed] });
-                    }
+                        // Notify staff
+                        (async () => {
+                            const staffChannel = client.channels.cache.get(config.staffChannelId);
+                            if (staffChannel) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle('⚠️ Spam Detection')
+                                    .setColor(0xFF0000)
+                                    .setDescription(`User ${message.author.toString()} has been timed out for spamming`)
+                                    .addFields(
+                                        { name: 'Channel', value: `<#${message.channel.id}>` },
+                                        { name: 'Sample Content', value: message.content },
+                                        { name: 'Action Taken', value: `Timeout (${config.timeoutDuration / 1000}s)` },
+                                        { name: 'Spam Details', value: `${messages.length} messages in ${TIME_WINDOW / 1000}s` }
+                                    )
+                                    .setTimestamp();
+
+                                await staffChannel.send({ embeds: [embed] });
+                            }
+                        })()
+                    ]);
+
+                    // Clear user's spam history
+                    userMessages.delete(userId);
+
                 } catch (error) {
                     console.error('Error handling spam:', error);
                 }
