@@ -45,8 +45,8 @@ module.exports = {
                 try {
                     // Get all recent messages from this user in the channel
                     const recentMessages = await message.channel.messages.fetch({ limit: 100 });
-                    const userSpamMessages = recentMessages.filter(msg => 
-                        msg.author.id === message.author.id && 
+                    const userSpamMessages = recentMessages.filter(msg =>
+                        msg.author.id === message.author.id &&
                         currentTime - msg.createdTimestamp < TIME_WINDOW
                     );
 
@@ -59,7 +59,7 @@ module.exports = {
                     // Log the case
                     const casesPath = path.join(__dirname, '..', 'cases.json');
                     const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
-                    
+
                     const spamCase = {
                         type: "spamming",
                         decisionMethod: "Auto",
@@ -84,11 +84,12 @@ module.exports = {
                             .setDescription(`User ${message.author.toString()} has been timed out for spamming`)
                             .addFields(
                                 { name: 'Channel', value: `<#${message.channel.id}>` },
+                                { name: 'Content', value: message.content },
                                 { name: 'Action Taken', value: `Timeout (${config.timeoutDuration / 1000}s)` },
-                                { name: 'Messages sent', value: `${userMessages.length} messages in ${TIME_WINDOW/1000}s` }
+                                { name: 'Messages sent', value: `${userMessages.length} messages in ${TIME_WINDOW / 1000}s` }
                             )
                             .setTimestamp();
-                        
+
                         await staffChannel.send({ embeds: [embed] });
                     }
                 } catch (error) {
