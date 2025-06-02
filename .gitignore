@@ -1,6 +1,4 @@
 .env
 node_modules
 cases.json
-messageHistory.json
 package-lock.json
-violations.json
