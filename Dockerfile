@@ -7,6 +7,6 @@ RUN npm install
 
 COPY . .
 
-RUN  git pulld
+RUN  git pull
 
 CMD ["npm", "start"]
