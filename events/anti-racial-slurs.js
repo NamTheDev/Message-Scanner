@@ -1,7 +1,9 @@
-const fs = require('fs');
-const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const config = require('../config.json');
+
+// Initialize Maps to store violations and cases
+const messageHistory = new Map();
+const cases = new Map();
 
 module.exports = {
     event: 'messageCreate',
@@ -33,19 +35,9 @@ module.exports = {
             // Delete the message
             await message.delete();
 
-            // Load message history for tracking warnings
-            const messageHistoryPath = path.join(__dirname, '..', 'messageHistory.json');
-            let messageHistory = JSON.parse(fs.readFileSync(messageHistoryPath, 'utf8'));
-
-            if (!messageHistory.violations[message.author.id]) {
-                messageHistory.violations[message.author.id] = 0;
-            }
-
-            messageHistory.violations[message.author.id]++;
-            const warningCount = messageHistory.violations[message.author.id];
-
-            // Save updated history
-            fs.writeFileSync(messageHistoryPath, JSON.stringify(messageHistory, null, 2));
+            // Get or initialize violation count for user
+            let warningCount = (messageHistory.get(message.author.id) || 0) + 1;
+            messageHistory.set(message.author.id, warningCount);
 
             // Send warning message that will delete itself after 5 seconds
             const warningMessage = await message.channel.send({
@@ -59,10 +51,6 @@ module.exports = {
                     // Timeout the user
                     await message.member.timeout(config.timeoutDuration, 'Multiple racial slur violations');
 
-                    // Log the case
-                    const casesPath = path.join(__dirname, '..', 'cases.json');
-                    const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
-
                     const slurCase = {
                         type: "racial_slur",
                         decisionMethod: "Auto",
@@ -75,12 +63,11 @@ module.exports = {
                         timestamp: new Date().toISOString()
                     };
 
-                    cases.push(slurCase);
-                    fs.writeFileSync(casesPath, JSON.stringify(cases, null, 2));
+                    // Store the case with a unique timestamp-based key
+                    cases.set(Date.now(), slurCase);
 
                     // Reset violation count
-                    messageHistory.violations[message.author.id] = 0;
-                    fs.writeFileSync(messageHistoryPath, JSON.stringify(messageHistory, null, 2));
+                    messageHistory.set(message.author.id, 0);
 
                     // Notify staff
                     const staffChannel = client.channels.cache.get(config.staffChannelId);
