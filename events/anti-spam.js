@@ -7,6 +7,7 @@ const fs = require('fs');
 const SPAM_THRESHOLD = config.spam.threshold;
 const TIME_WINDOW = config.spam.timeWindow;
 const SIMILARITY_THRESHOLD = config.spam.similarityThreshold;
+const FILTERED_CHANNELS = config.spam.exceptions;
 
 // In-memory message store using Map
 const userMessages = new Map();
@@ -14,6 +15,9 @@ const userMessages = new Map();
 module.exports = {
     event: 'messageCreate',
     async run(client, message) {
+        for (const ID of FILTERED_CHANNELS) {
+            if(message.channel.id === ID) return;
+        }
         if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
 
         const currentTime = Date.now();
@@ -44,18 +48,6 @@ module.exports = {
                     // Immediate timeout
                     await message.member.timeout(config.timeoutDuration, 'Spam Detection');
 
-                    const spamCase = {
-                        type: "spamming",
-                        decisionMethod: "Auto",
-                        userId: message.author.id,
-                        username: message.author.username,
-                        channelId: message.channel.id,
-                        channelName: message.channel.name,
-                        messageContent: message.content,
-                        actionTaken: "Timeout",
-                        timestamp: new Date().toISOString()
-                    };
-
                     // Run cleanup operations in parallel
                     await Promise.all([
                         // Delete messages
@@ -68,14 +60,6 @@ module.exports = {
                                 currentTime - msg.createdTimestamp < TIME_WINDOW
                             );
                             await Promise.all(spamMessages.map(msg => msg.delete()));
-                        })(),
-
-                        // Log case to file
-                        (async () => {
-                            const casesPath = path.join(__dirname, '..', 'cases.json');
-                            const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
-                            cases.push(spamCase);
-                            fs.writeFileSync(casesPath, JSON.stringify(cases, null, 2));
                         })(),
 
                         // Notify staff
