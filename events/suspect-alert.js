@@ -7,10 +7,6 @@ const groqClient = new Groq({
     apiKey: process.env.AI_KEY
 });
 
-// Constants
-const CHECK_INTERVAL = 30 * 1000; // 30 seconds
-let lastCheckTime = Date.now();
-
 // In-memory message store
 const pendingMessages = new Map();
 
@@ -33,20 +29,23 @@ module.exports = {
 
         pendingMessages.set(message.id, messageData);
 
-        // Check if it's time to process messages
-        const currentTime = Date.now();
-        if (currentTime - lastCheckTime >= CHECK_INTERVAL) {
-            lastCheckTime = currentTime;
-
             try {
                 // Get all pending messages
                 if (pendingMessages.size === 0) return;
 
                 // Process messages in parallel for better performance
                 const processingPromises = Array.from(pendingMessages.values()).map(async (msg) => {
-                    const prompt = `Check if this message violates any rules. Rules: ${config.rules.join(', ')}
+                    const prompt = `
+                    Check if this message violates any rules.
+
+                    Rules: ${config.rules.join(', ')}
+                    
                     Message: "${msg.content}"
-                    Response format: either response with "safe" or "violation". if "violation," give a very short explaination.`;
+                    Response format:
+                    - Safe format
+                    "Safe - no violation detected."
+                    - Violation format
+                    "Violation - [reason]"`;
 
                     const result = await groqClient.chat.completions.create({
                         messages: [{ role: 'user', content: prompt }],
@@ -55,7 +54,7 @@ module.exports = {
                     const response = result.choices[0].message.content.toLowerCase();
 
                     // If response isn't "safe", alert staff
-                    if (!response.includes('safe') || response.includes("violation")) {
+                    if (response.length > 5 & response.startsWith("violation")) {
                         const staffChannel = client.channels.cache.get(config.staffChannelId);
                         if (staffChannel) {
                             const messageLink = `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.messageId}`;
@@ -87,6 +86,5 @@ module.exports = {
             } catch (error) {
                 console.error('Error in suspect alert system:', error);
             }
-        }
     }
 };
