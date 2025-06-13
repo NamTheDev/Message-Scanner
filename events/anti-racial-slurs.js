@@ -3,7 +3,6 @@ const config = require('../config.json');
 
 // Initialize Maps to store violations and cases
 const messageHistory = new Map();
-const cases = new Map();
 
 module.exports = {
     event: 'messageCreate',
@@ -50,21 +49,6 @@ module.exports = {
                 try {
                     // Timeout the user
                     await message.member.timeout(config.timeoutDuration, 'Multiple racial slur violations');
-
-                    const slurCase = {
-                        type: "racial_slur",
-                        decisionMethod: "Auto",
-                        userId: message.author.id,
-                        username: message.author.username,
-                        channelId: message.channel.id,
-                        channelName: message.channel.name,
-                        messageContent: message.content,
-                        actionTaken: "Timeout",
-                        timestamp: new Date().toISOString()
-                    };
-
-                    // Store the case with a unique timestamp-based key
-                    cases.set(Date.now(), slurCase);
 
                     // Reset violation count
                     messageHistory.set(message.author.id, 0);
