@@ -3,15 +3,6 @@ const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js'
 const fs = require('fs');
 const path = require('path');
 
-// Define paths for persistent data files
-const casesPath = path.join(__dirname, 'cases.json');
-
-// Check and create cases.json if it doesn't exist
-if (!fs.existsSync(casesPath)) {
-    console.log('cases.json not found, creating...');
-    fs.writeFileSync(casesPath, '[]', 'utf8');
-}
-
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
