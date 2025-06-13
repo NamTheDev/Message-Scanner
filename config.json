@@ -1,6 +1,6 @@
 {
     "staffRoleId": "1377305394254184558",
-    "model": "llama-3.1-8b-instant",
+    "model": "llama-3.3-70b-versatile",
     "rules": [
        "No racism",
        "No NSFW",
@@ -13,18 +13,21 @@
     "spam": {
         "threshold": 5,
         "timeWindow": 5000,
-        "similarityThreshold": 0.5
+        "similarityThreshold": 0.5,
+        "exceptions": [
+            "1377293635556737086"
+        ]
     },
     "violation": {
         "maxStrictViolations": 3,
         "maxWarnings": 3,
         "racialSlurs": [
+            "niga",
             "nigg",
             "nigga",
             "nigger",
             "negro",
-            "chink",
-            "twink"
+            "chink"
         ]
     }
 }
