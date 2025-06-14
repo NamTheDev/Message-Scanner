@@ -3,12 +3,12 @@ const config = require('../config.json');
 const { default: Groq } = require('groq-sdk');
 
 // Initialize AI
-const groqClient = new Groq({
+const GROQ_CLIENT = new Groq({
     apiKey: process.env.AI_KEY
 });
 
 // In-memory message store
-const pendingMessages = new Map();
+const PENDING_MESSAGES = new Map();
 
 module.exports = {
     event: 'messageCreate',
@@ -27,16 +27,18 @@ module.exports = {
             timestamp: Date.now()
         };
 
-        pendingMessages.set(message.id, messageData);
+        PENDING_MESSAGES.set(message.id, messageData);
 
             try {
                 // Get all pending messages
-                if (pendingMessages.size === 0) return;
+                if (PENDING_MESSAGES.size === 0) return;
 
                 // Process messages in parallel for better performance
-                const processingPromises = Array.from(pendingMessages.values()).map(async (msg) => {
+                const processingPromises = Array.from(PENDING_MESSAGES.values()).map(async (msg) => {
                     const prompt = `
-                    Check if this message violates any rules.
+                    Decide if this message violates any rules.
+
+                    Must analyze carefully before deciding.
 
                     Rules: ${config.rules.join(', ')}
                     
@@ -45,9 +47,10 @@ module.exports = {
                     - Safe format
                     "Safe - no violation detected."
                     - Violation format
-                    "Violation - [reason]"`;
+                    "Violation - [reason]"
+                    `;
 
-                    const result = await groqClient.chat.completions.create({
+                    const result = await GROQ_CLIENT.chat.completions.create({
                         messages: [{ role: 'user', content: prompt }],
                         model: config.model
                     });
@@ -81,7 +84,7 @@ module.exports = {
                 await Promise.all(processingPromises);
 
                 // Clear pending messages after processing
-                pendingMessages.clear();
+                PENDING_MESSAGES.clear();
 
             } catch (error) {
                 console.error('Error in suspect alert system:', error);
