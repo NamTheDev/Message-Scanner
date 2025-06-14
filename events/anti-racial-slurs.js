@@ -1,12 +1,16 @@
 const { EmbedBuilder } = require('discord.js');
 const config = require('../config.json');
 
-// Initialize Maps to store violations and cases
-const messageHistory = new Map();
+// Initialize constants
+const MESSAGE_HISTORY = new Map();
+const FILTERED_CHANNELS = config.violation.exceptions;
 
 module.exports = {
     event: 'messageCreate',
     async run(client, message) {
+        for (const ID of FILTERED_CHANNELS) {
+            if (message.channel.id === ID) return;
+        }
         if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
 
         // Normalize the message content
@@ -35,8 +39,8 @@ module.exports = {
             await message.delete();
 
             // Get or initialize violation count for user
-            let warningCount = (messageHistory.get(message.author.id) || 0) + 1;
-            messageHistory.set(message.author.id, warningCount);
+            let warningCount = (MESSAGE_HISTORY.get(message.author.id) || 0) + 1;
+            MESSAGE_HISTORY.set(message.author.id, warningCount);
 
             // Send warning message that will delete itself after 5 seconds
             const warningMessage = await message.channel.send({
@@ -51,7 +55,7 @@ module.exports = {
                     await message.member.timeout(config.timeoutDuration, 'Multiple racial slur violations');
 
                     // Reset violation count
-                    messageHistory.set(message.author.id, 0);
+                    MESSAGE_HISTORY.set(message.author.id, 0);
 
                     // Notify staff
                     const staffChannel = client.channels.cache.get(config.staffChannelId);
