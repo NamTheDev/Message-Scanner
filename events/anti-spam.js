@@ -16,7 +16,7 @@ module.exports = {
     event: 'messageCreate',
     async run(client, message) {
         for (const ID of FILTERED_CHANNELS) {
-            if(message.channel.id === ID) return;
+            if (message.channel.id === ID) return;
         }
         if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
 
