@@ -10,7 +10,7 @@ const SIMILARITY_THRESHOLD = config.spam.similarityThreshold;
 const FILTERED_CHANNELS = config.spam.exceptions;
 
 // In-memory message store using Map
-const userMessages = new Map();
+const USER_MESSAGES = new Map();
 
 module.exports = {
     event: 'messageCreate',
@@ -20,24 +20,24 @@ module.exports = {
         }
         if (message.author.bot || message.member.roles.cache.has(config.staffRoleId)) return;
 
-        const currentTime = Date.now();
-        const userId = message.author.id;
+        const CURRENT_TIME = Date.now();
+        const USER_ID = message.author.id;
 
         // Get or initialize user's message array
-        if (!userMessages.has(userId)) {
-            userMessages.set(userId, []);
+        if (!USER_MESSAGES.has(USER_ID)) {
+            USER_MESSAGES.set(USER_ID, []);
         }
 
         // Clean up old messages and add new one
-        const messages = userMessages.get(userId)
-            .filter(msg => currentTime - msg.timestamp < TIME_WINDOW);
+        const messages = USER_MESSAGES.get(USER_ID)
+            .filter(msg => CURRENT_TIME - msg.timestamp < TIME_WINDOW);
 
         messages.push({
-            timestamp: currentTime,
+            timestamp: CURRENT_TIME,
             content: message.content
         });
 
-        userMessages.set(userId, messages);
+        USER_MESSAGES.set(USER_ID, messages);
 
         // Check for spam
         if (messages.length >= SPAM_THRESHOLD) {
@@ -56,8 +56,8 @@ module.exports = {
                                 limit: Math.min(SPAM_THRESHOLD * 2, 100)
                             });
                             const spamMessages = recentMessages.filter(msg =>
-                                msg.author.id === userId &&
-                                currentTime - msg.createdTimestamp < TIME_WINDOW
+                                msg.author.id === USER_ID &&
+                                CURRENT_TIME - msg.createdTimestamp < TIME_WINDOW
                             );
                             await Promise.all(spamMessages.map(msg => msg.delete()));
                         })(),
@@ -84,7 +84,7 @@ module.exports = {
                     ]);
 
                     // Clear user's spam history
-                    userMessages.delete(userId);
+                    USER_MESSAGES.delete(USER_ID);
 
                 } catch (error) {
                     console.error('Error handling spam:', error);
