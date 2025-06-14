@@ -2,11 +2,11 @@
     "staffRoleId": "1377305394254184558",
     "model": "llama-3.3-70b-versatile",
     "rules": [
-       "No racism",
-       "No NSFW",
-       "No offensive argument",
-       "No advertisement",
-       "No personal information"
+        "No racism",
+        "No NSFW",
+        "No offensive argument",
+        "No advertisement",
+        "No personal information"
     ],
     "timeoutDuration": 240000,
     "staffChannelId": "1378630442915463228",
@@ -28,6 +28,9 @@
             "nigger",
             "negro",
             "chink"
+        ],
+        "exceptions": [
+            "1377293635556737086"
         ]
     }
 }
